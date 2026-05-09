@@ -74,8 +74,9 @@ export const claudeCommands = [
 
 export interface ClaudeHandlerDeps {
   workDir: string;
-  getClaudeController: () => AbortController | null;
-  setClaudeController: (controller: AbortController | null) => void;
+  /** Per-channel controller. channelId 있으면 해당 채널 controller, 없으면 글로벌 fallback. */
+  getClaudeController: (channelId?: string) => AbortController | null;
+  setClaudeController: (controller: AbortController | null, channelId?: string) => void;
   /** Get session ID for a specific channel/thread (per-channel tracking) */
   getSessionForChannel: (channelId: string) => string | undefined;
   /** Set session ID for a specific channel/thread */
@@ -106,13 +107,14 @@ export function createClaudeHandlers(deps: ClaudeHandlerDeps) {
      */
     // deno-lint-ignore no-explicit-any
     async onClaude(ctx: any, prompt: string, channelId: string, explicitSessionId?: string): Promise<ClaudeResponse> {
-      const existingController = deps.getClaudeController();
+      // 같은 채널의 이전 controller만 abort. 다른 채널은 유지.
+      const existingController = deps.getClaudeController(channelId);
       if (existingController) {
         existingController.abort();
       }
 
       const controller = new AbortController();
-      deps.setClaudeController(controller);
+      deps.setClaudeController(controller, channelId);
 
       await ctx.deferReply();
 
@@ -169,7 +171,7 @@ export function createClaudeHandlers(deps: ClaudeHandlerDeps) {
         deps.setSessionForChannel(channelId, result.sessionId);
       }
       deps.setClaudeSessionId(result.sessionId);
-      deps.setClaudeController(null);
+      deps.setClaudeController(null, channelId);
 
       return result;
     },
@@ -179,13 +181,14 @@ export function createClaudeHandlers(deps: ClaudeHandlerDeps) {
      */
     // deno-lint-ignore no-explicit-any
     async onClaudeThread(ctx: any, prompt: string, threadName?: string): Promise<ClaudeResponse> {
-      const existingController = deps.getClaudeController();
+      const channelId: string = ctx.getChannelId?.() ?? '';
+      const existingController = deps.getClaudeController(channelId);
       if (existingController) {
         existingController.abort();
       }
 
       const controller = new AbortController();
-      deps.setClaudeController(controller);
+      deps.setClaudeController(controller, channelId);
 
       await ctx.deferReply();
 
@@ -237,7 +240,7 @@ export function createClaudeHandlers(deps: ClaudeHandlerDeps) {
       );
 
       deps.setClaudeSessionId(result.sessionId);
-      deps.setClaudeController(null);
+      deps.setClaudeController(null, channelId);
 
       // Map the thread channel → session so /claude inside the thread auto-continues
       if (threadSessionKey && result.sessionId && deps.sessionThreads) {
@@ -256,13 +259,14 @@ export function createClaudeHandlers(deps: ClaudeHandlerDeps) {
      */
     // deno-lint-ignore no-explicit-any
     async onContinue(ctx: any, prompt?: string): Promise<ClaudeResponse> {
-      const existingController = deps.getClaudeController();
+      const channelId: string = ctx.getChannelId?.() ?? '';
+      const existingController = deps.getClaudeController(channelId);
       if (existingController) {
         existingController.abort();
       }
 
       const controller = new AbortController();
-      deps.setClaudeController(controller);
+      deps.setClaudeController(controller, channelId);
 
       const actualPrompt = prompt || "Please continue.";
 
@@ -322,21 +326,22 @@ export function createClaudeHandlers(deps: ClaudeHandlerDeps) {
       );
 
       deps.setClaudeSessionId(result.sessionId);
-      deps.setClaudeController(null);
+      deps.setClaudeController(null, channelId);
 
       return result;
     },
 
     // deno-lint-ignore no-explicit-any
-    onClaudeCancel(_ctx: any): boolean {
-      const currentController = deps.getClaudeController();
+    onClaudeCancel(ctx: any): boolean {
+      const channelId: string = ctx.getChannelId?.() ?? '';
+      const currentController = deps.getClaudeController(channelId);
       if (!currentController) {
         return false;
       }
 
-      console.log("Cancelling Claude Code session...");
+      console.log(`Cancelling Claude Code session in channel ${channelId}...`);
       currentController.abort();
-      deps.setClaudeController(null);
+      deps.setClaudeController(null, channelId);
       deps.setClaudeSessionId(undefined);
 
       return true;

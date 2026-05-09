@@ -514,11 +514,23 @@ export function createAllHandlers(
 
   // Per-channel session tracking — maps channelId/threadId to active sessionId
   const channelSessionMap = new Map<string, string>();
+  // Per-channel controller tracking — 같은 채널의 in-flight query만 abort 가능. 다채널 동시 사용 가능.
+  const channelControllers = new Map<string, AbortController>();
 
   const claudeHandlers = createClaudeHandlers({
     workDir,
-    getClaudeController: claudeSession.getController,
-    setClaudeController: claudeSession.setController,
+    getClaudeController: (channelId?: string) => {
+      if (channelId) return channelControllers.get(channelId) ?? null;
+      return claudeSession.getController();
+    },
+    setClaudeController: (controller: AbortController | null, channelId?: string) => {
+      if (channelId) {
+        if (controller) channelControllers.set(channelId, controller);
+        else channelControllers.delete(channelId);
+      }
+      // 글로벌 fallback도 업데이트 (signal handler·기존 single-controller deps 호환)
+      claudeSession.setController(controller);
+    },
     getSessionForChannel: (channelId: string) => channelSessionMap.get(channelId),
     setSessionForChannel: (channelId: string, sessionId: string | undefined) => {
       if (sessionId) {
