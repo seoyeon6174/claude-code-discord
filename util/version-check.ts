@@ -97,6 +97,9 @@ export async function runVersionCheck(): Promise<{
     fields: Array<{ name: string; value: string; inline: boolean }>;
   };
 }> {
+  if (Deno.env.get("DISABLE_UPDATE_CHECK") === "1") {
+    return { updateAvailable: false };
+  }
   const result = await checkForUpdates();
 
   if (result.error) {
@@ -149,6 +152,7 @@ export function startPeriodicUpdateCheck(
   onUpdateAvailable: (result: VersionCheckResult) => void,
   intervalMs = 12 * 60 * 60 * 1000
 ): number {
+  if (Deno.env.get("DISABLE_UPDATE_CHECK") === "1") return 0;
   const check = async () => {
     try {
       const result = await checkForUpdates();

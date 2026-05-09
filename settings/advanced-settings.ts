@@ -39,11 +39,11 @@ export interface AdvancedBotSettings {
 
 export const DEFAULT_SETTINGS: AdvancedBotSettings = {
   // Notifications
-  mentionEnabled: false,
+  mentionEnabled: true,
   mentionUserId: null,
   
   // Claude Code (only CLI-supported options)
-  defaultModel: '',
+  defaultModel: 'claude-opus-4-7',
   defaultSystemPrompt: null,
   autoIncludeSystemInfo: false,
   autoIncludeGitContext: true,

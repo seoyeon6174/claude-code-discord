@@ -254,10 +254,16 @@ export async function createDiscordBot(
   function isOurChannel(channelId: string): boolean {
     if (!myChannel) return false;
     if (channelId === myChannel.id) return true;
-    // Check if the interaction is inside a thread whose parent is our channel
     const channel = client.channels.cache.get(channelId);
+    if (!channel) return false;
     // deno-lint-ignore no-explicit-any
-    return !!(channel && (channel as any).parentId === myChannel.id);
+    const parentId = (channel as any).parentId;
+    // Accept threads/children of myChannel
+    if (parentId === myChannel.id) return true;
+    // Accept sibling channels in the same category as myChannel (channel-routed cwd)
+    // deno-lint-ignore no-explicit-any
+    if (parentId && parentId === (myChannel as any).parentId) return true;
+    return false;
   }
 
   // Command handler - completely generic
@@ -497,8 +503,11 @@ export async function createDiscordBot(
 
   try {
     console.log('Registering slash commands...');
+    const guildIdEnv = Deno.env.get('GUILD_ID');
     await rest.put(
-      Routes.applicationCommands(applicationId),
+      guildIdEnv
+        ? Routes.applicationGuildCommands(applicationId, guildIdEnv)
+        : Routes.applicationCommands(applicationId),
       { body: commands.map(cmd => cmd.toJSON()) },
     );
     console.log('Slash commands registered');
@@ -559,6 +568,10 @@ export async function createDiscordBot(
   });
 
   client.on(Events.InteractionCreate, async (interaction) => {
+    // Channel-routed cwd: set override env from interaction's channel name
+    if (interaction.channel && 'name' in interaction.channel && interaction.channel.name) {
+      Deno.env.set('CCD_CHANNEL_OVERRIDE', interaction.channel.name);
+    }
     if (interaction.isCommand()) {
       await handleCommand(interaction as CommandInteraction);
     } else if (interaction.isAutocomplete()) {

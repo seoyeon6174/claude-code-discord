@@ -115,11 +115,11 @@ export interface UnifiedBotSettings {
 
 export const UNIFIED_DEFAULT_SETTINGS: UnifiedBotSettings = {
   // Basic bot settings
-  mentionEnabled: false,
+  mentionEnabled: true,
   mentionUserId: null,
   
   // Claude settings (only CLI-supported options)
-  defaultModel: '',
+  defaultModel: 'claude-opus-4-7',
   defaultSystemPrompt: null,
   autoIncludeSystemInfo: false,
   autoIncludeGitContext: true,

@@ -286,6 +286,10 @@ export async function setMcpServersActive(servers: Record<string, McpServerConfi
 export async function fetchClaudeInfo(workDir: string, envVars?: Record<string, string>): Promise<ClaudeInitInfo | null> {
   let infoQuery: Query | null = null;
   try {
+    // 봇이 Claude Code CLI 컨텍스트에서 띄워졌을 경우 nested session 차단을 회피.
+    const cleanEnv = envVars ?? Object.fromEntries(Object.entries(Deno.env.toObject()));
+    delete cleanEnv.CLAUDECODE;
+    delete cleanEnv.CLAUDE_CODE_ENTRYPOINT;
     // Create a minimal query — it will start the CLI subprocess
     infoQuery = claudeQuery({
       prompt: "Say 'info' and nothing else.",
@@ -296,9 +300,7 @@ export async function fetchClaudeInfo(workDir: string, envVars?: Record<string, 
         thinking: { type: 'disabled' },
         effort: 'low',
         persistSession: false,
-        env: envVars ?? Object.fromEntries(
-          Object.entries(Deno.env.toObject())
-        ),
+        env: cleanEnv,
       },
     });
 

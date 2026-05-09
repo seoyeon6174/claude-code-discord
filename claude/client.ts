@@ -180,9 +180,29 @@ export async function sendToClaudeCode(
   
   // Clean up session ID
   const cleanedSessionId = sessionId ? cleanSessionId(sessionId) : undefined;
-  
+
+  // Channel-routed cwd:
+  //   'projects' 채널 → ~/Projects (root, 모든 하위 레포 보이는 광역 컨텍스트)
+  //   그 외 채널 → ~/Projects/<채널명>
+  let effectiveWorkDir = workDir;
+  const channelOverride = Deno.env.get('CCD_CHANNEL_OVERRIDE');
+  if (channelOverride) {
+    const home = Deno.env.get('HOME') || '';
+    const projectsRoot = path.join(home, 'Projects');
+    const candidate = channelOverride.toLowerCase() === 'projects'
+      ? projectsRoot
+      : path.join(projectsRoot, channelOverride);
+    try {
+      const stat = await Deno.stat(candidate);
+      if (stat.isDirectory) {
+        effectiveWorkDir = candidate;
+        console.log('[Channel CWD] ' + channelOverride + ' -> ' + candidate);
+      }
+    } catch { /* keep workDir */ }
+  }
+
   // Load MCP servers from .claude/mcp.json
-  const mcpServers = await loadMcpServers(workDir);
+  const mcpServers = await loadMcpServers(effectiveWorkDir);
 
   // Build set of MCP server name prefixes for auto-allowing MCP tools
   const mcpToolPrefixes = mcpServers
@@ -206,6 +226,10 @@ export async function sendToClaudeCode(
         // Enable experimental Agent Teams if configured
         ...(modelOptions?.enableAgentTeams && { CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS: '1' }),
       };
+      // 봇이 Claude Code CLI 컨텍스트에서 띄워졌을 경우 자식이 "nested session"으로 판단해 exit 1.
+      // 자식엔 CLI 표지를 빼고 깨끗한 새 세션으로 시작시킴.
+      delete envVars.CLAUDECODE;
+      delete envVars.CLAUDE_CODE_ENTRYPOINT;
       
       // Apply extra env vars (proxy settings, etc.)
       if (modelOptions?.extraEnv) {
@@ -221,14 +245,23 @@ export async function sendToClaudeCode(
         prompt,
         abortController: controller,
         options: {
-          cwd: workDir,
+          cwd: effectiveWorkDir,
           permissionMode: permMode,
+          // 디버그: 자식 claude CLI stderr를 봇 콘솔로 forwarding (exit 1 진단용)
+          debug: Deno.env.get("CCD_DEBUG_CHILD") === "1",
+          stderr: (data: string) => {
+            if (Deno.env.get("CCD_DEBUG_CHILD") === "1") {
+              console.error(`[claude child stderr] ${data.toString().trim()}`);
+            }
+          },
           // Use Claude Code's system prompt + optional append
           systemPrompt: systemPromptConfig,
           // Load project CLAUDE.md files
           settingSources: ['user' as const, 'project' as const, 'local' as const],
-          // Native thinking config (replaces MAX_THINKING_TOKENS env var hack)
-          ...(modelOptions?.thinking && { thinking: modelOptions.thinking }),
+          // Native thinking config — SDK 0.2.45 + Opus 4.7 비호환.
+          // SDK가 adaptive/enabled 어느 값을 받아도 API에 'thinking.type.enabled'로 전송 → 400.
+          // 임시 우회: thinking 옵션 자체를 보내지 않음. effort만으로 reasoning 제어.
+          // (SDK 0.2.138+로 업그레이드 시 'delegate' permission mode 등 breaking change 있어 보류)
           // Effort level
           ...(modelOptions?.effort && { effort: modelOptions.effort }),
           // Budget cap
