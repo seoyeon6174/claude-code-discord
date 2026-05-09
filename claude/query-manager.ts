@@ -10,6 +10,7 @@
  */
 
 import { query as claudeQuery, type Query, type AccountInfo, type ModelInfo, type McpServerStatus, type SlashCommand, type RewindFilesResult, type PermissionMode, type McpSetServersResult, type McpServerConfig } from "@anthropic-ai/claude-agent-sdk";
+import { stripClaudeCodeMarkers } from "../util/env-clean.ts";
 
 // Re-export SDK types for consumers
 export type { Query, AccountInfo, ModelInfo as SDKModelInfoFull, McpServerStatus, SlashCommand as SDKSlashCommand, RewindFilesResult, McpSetServersResult, McpServerConfig };
@@ -286,10 +287,9 @@ export async function setMcpServersActive(servers: Record<string, McpServerConfi
 export async function fetchClaudeInfo(workDir: string, envVars?: Record<string, string>): Promise<ClaudeInitInfo | null> {
   let infoQuery: Query | null = null;
   try {
-    // 봇이 Claude Code CLI 컨텍스트에서 띄워졌을 경우 nested session 차단을 회피.
-    const cleanEnv = envVars ?? Object.fromEntries(Object.entries(Deno.env.toObject()));
-    delete cleanEnv.CLAUDECODE;
-    delete cleanEnv.CLAUDE_CODE_ENTRYPOINT;
+    // 호출자가 envVars 넘기든 아니든 항상 복사본을 만들어 mutation leak 방지.
+    const cleanEnv = { ...(envVars ?? Deno.env.toObject()) };
+    stripClaudeCodeMarkers(cleanEnv);
     // Create a minimal query — it will start the CLI subprocess
     infoQuery = claudeQuery({
       prompt: "Say 'info' and nothing else.",

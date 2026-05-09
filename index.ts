@@ -236,6 +236,8 @@ export async function createClaudeCodeBot(config: BotConfig) {
       healthMonitor,
       claudeSessionManager,
       sendClaudeMessages,
+      // deno-lint-ignore no-explicit-any
+      createChannelSender: (channel: any) => createClaudeSender(createChannelSenderAdapter(channel)),
       onAskUser,
       onPermissionRequest,
       onBotSettingsUpdate: (settings) => {

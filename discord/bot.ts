@@ -246,6 +246,15 @@ export async function createDiscordBot(
 
       getChannelId(): string {
         return interaction.channelId ?? '';
+      },
+
+      getChannelName(): string | null {
+        const ch = interaction.channel;
+        return ch && 'name' in ch ? (ch.name ?? null) : null;
+      },
+
+      getRawChannel() {
+        return interaction.channel;
       }
     };
   }
@@ -568,10 +577,6 @@ export async function createDiscordBot(
   });
 
   client.on(Events.InteractionCreate, async (interaction) => {
-    // Channel-routed cwd: set override env from interaction's channel name
-    if (interaction.channel && 'name' in interaction.channel && interaction.channel.name) {
-      Deno.env.set('CCD_CHANNEL_OVERRIDE', interaction.channel.name);
-    }
     if (interaction.isCommand()) {
       await handleCommand(interaction as CommandInteraction);
     } else if (interaction.isAutocomplete()) {

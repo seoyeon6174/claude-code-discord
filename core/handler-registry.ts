@@ -168,8 +168,13 @@ export interface HandlerRegistryDeps {
   healthMonitor: ProcessHealthMonitor;
   /** Claude session manager instance */
   claudeSessionManager: ClaudeSessionManager;
-  /** Function to send Claude messages */
+  /** Function to send Claude messages (default: posts to main channel) */
   sendClaudeMessages: (messages: ClaudeMessage[]) => Promise<void>;
+  /** Channel-aware sender factory — produces a sender bound to the given channel.
+   *  Used so /claude responses post back to the channel the user invoked from,
+   *  not myChannel. */
+  // deno-lint-ignore no-explicit-any
+  createChannelSender?: (channel: any) => (messages: ClaudeMessage[]) => Promise<void>;
   /** Callback when bot settings update */
   onBotSettingsUpdate?: (settings: { mentionEnabled: boolean; mentionUserId: string | null }) => void;
   /** Late-bound callback for AskUserQuestion tool — Claude asks the Discord user mid-session.
@@ -382,7 +387,7 @@ export function createAllHandlers(
   const {
     workDir, repoName, branchName, categoryName, discordToken, applicationId,
     shellManager, worktreeBotManager, crashHandler, claudeSessionManager,
-    sendClaudeMessages, onBotSettingsUpdate
+    sendClaudeMessages, createChannelSender, onBotSettingsUpdate
   } = deps;
 
   const currentSettings = settings.getSettings();
@@ -525,6 +530,7 @@ export function createAllHandlers(
     getClaudeSessionId: claudeSession.getSessionId,
     setClaudeSessionId: claudeSession.setSessionId,
     sendClaudeMessages,
+    createChannelSender,
     getQueryOptions,
     sessionThreads: deps.sessionThreads,
   });

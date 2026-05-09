@@ -51,6 +51,11 @@ export interface InteractionContext {
   getUserId(): string;
   /** Returns the channel or thread ID the interaction was sent in */
   getChannelId(): string;
+  /** Returns the channel/thread name the interaction was sent in (for channel-routed cwd) */
+  getChannelName(): string | null;
+  /** Returns the raw channel object — for building channel-specific senders. */
+  // deno-lint-ignore no-explicit-any
+  getRawChannel(): any;
 }
 
 export interface BotConfig {

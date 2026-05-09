@@ -26,6 +26,8 @@ export interface EnhancedClaudeOptions {
   agent?: string;
   /** Custom subagent definitions */
   agents?: Record<string, SDKAgentDefinition>;
+  /** Discord 채널명 — channelName과 일치하는 ~/Projects/<name>로 cwd 라우팅. */
+  channelName?: string;
 }
 
 export interface ClaudeSession {
@@ -170,6 +172,9 @@ export async function enhancedClaudeQuery(
   // System prompt: skip appendSystemPrompt when using native agent (SDK handles it via AgentDefinition.prompt)
   if (options.systemPrompt && !options.agent) {
     modelOptions.appendSystemPrompt = options.systemPrompt;
+  }
+  if (options.channelName) {
+    modelOptions.channelName = options.channelName;
   }
 
   const result = await sendToClaudeCode(

@@ -84,8 +84,12 @@ export interface ClaudeHandlerDeps {
   getClaudeSessionId: () => string | undefined;
   /** Legacy global setter (keeps backward compat for session manager) */
   setClaudeSessionId: (sessionId: string | undefined) => void;
-  /** Default sender — used when no thread is available (fallback) */
+  /** Default sender — used when no thread is available (fallback to main channel) */
   sendClaudeMessages: (messages: ClaudeMessage[]) => Promise<void>;
+  /** Channel-aware sender factory — when called with the interaction's channel,
+   *  produces a sender that posts back to that channel (not myChannel). */
+  // deno-lint-ignore no-explicit-any
+  createChannelSender?: (channel: any) => (messages: ClaudeMessage[]) => Promise<void>;
   /** Get current runtime options from unified settings (thinking, operation, proxy) */
   getQueryOptions?: () => ClaudeModelOptions;
   /** Thread-per-session callbacks (optional — when absent, falls back to main channel) */
@@ -119,7 +123,10 @@ export function createClaudeHandlers(deps: ClaudeHandlerDeps) {
       const activeSessionId = explicitSessionId || deps.getSessionForChannel(channelId);
 
       // Pick the right sender — if this channel has a thread, use it
-      let activeSender = sendClaudeMessages;
+      // 호출 채널로 송출하는 sender (factory 있으면 channel-aware, 아니면 main fallback)
+      let activeSender = deps.createChannelSender
+        ? deps.createChannelSender(ctx.getRawChannel?.())
+        : sendClaudeMessages;
       if (activeSessionId && deps.sessionThreads) {
         try {
           const existing = await deps.sessionThreads.getThreadSender(activeSessionId);
@@ -154,7 +161,7 @@ export function createClaudeHandlers(deps: ClaudeHandlerDeps) {
           }
         },
         false,
-        deps.getQueryOptions?.()
+        { ...(deps.getQueryOptions?.() ?? {}), channelName: ctx.getChannelName?.() ?? undefined }
       );
 
       // Track session per-channel and globally
@@ -183,7 +190,10 @@ export function createClaudeHandlers(deps: ClaudeHandlerDeps) {
       await ctx.deferReply();
 
       // Create a dedicated thread for this session
-      let activeSender = sendClaudeMessages;
+      // 호출 채널로 송출하는 sender (factory 있으면 channel-aware, 아니면 main fallback)
+      let activeSender = deps.createChannelSender
+        ? deps.createChannelSender(ctx.getRawChannel?.())
+        : sendClaudeMessages;
       let threadSessionKey: string | undefined;
       let threadChannelId: string | undefined;
 
@@ -223,7 +233,7 @@ export function createClaudeHandlers(deps: ClaudeHandlerDeps) {
           }
         },
         false,
-        deps.getQueryOptions?.()
+        { ...(deps.getQueryOptions?.() ?? {}), channelName: ctx.getChannelName?.() ?? undefined }
       );
 
       deps.setClaudeSessionId(result.sessionId);
@@ -259,7 +269,10 @@ export function createClaudeHandlers(deps: ClaudeHandlerDeps) {
       await ctx.deferReply();
 
       // Check if the most recent session has a thread — if so, reuse it
-      let activeSender = sendClaudeMessages;
+      // 호출 채널로 송출하는 sender (factory 있으면 channel-aware, 아니면 main fallback)
+      let activeSender = deps.createChannelSender
+        ? deps.createChannelSender(ctx.getRawChannel?.())
+        : sendClaudeMessages;
       let isReusingThread = false;
 
       if (deps.sessionThreads) {
@@ -305,7 +318,7 @@ export function createClaudeHandlers(deps: ClaudeHandlerDeps) {
           }
         },
         true, // continueMode = true
-        deps.getQueryOptions?.()
+        { ...(deps.getQueryOptions?.() ?? {}), channelName: ctx.getChannelName?.() ?? undefined }
       );
 
       deps.setClaudeSessionId(result.sessionId);
