@@ -101,3 +101,7 @@ android-sdk/
 
 # Runtime logs
 bot.log
+.claude/settings.local.json
+.superpowers/
+logs/
+*.bak
