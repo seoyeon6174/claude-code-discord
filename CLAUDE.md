@@ -7,13 +7,15 @@ Claude Code를 Discord로 노출하는 봇. `zebbern/claude-code-discord`의 pri
 launchd `com.zebbern.ccd`가 **이 디렉토리를 WorkingDirectory로 24/7 실행 중** (KeepAlive). 코드를 수정해도 재시작 전까지 반영되지 않고, 잘못 수정하면 봇이 죽는다.
 
 - 실행 명령: `deno task start` (= `deno run --allow-all index.ts`)
-- 로그: `~/Library/Logs/ccd.log` · `~/Library/Logs/ccd.err` (+ 레포 루트 `bot.log`)
+- 로그: `~/Library/Logs/ccd.log` · `~/Library/Logs/ccd.err` (레포 루트 `bot.log`는 legacy, 2026-05 이후 미갱신)
 - 재시작: `launchctl kickstart -k gui/$(id -u)/com.zebbern.ccd`
 - 중지/시작: `launchctl stop com.zebbern.ccd` / `launchctl start com.zebbern.ccd`
 
 ## 핵심 패치 (fork 이유)
 
 `claude/client.ts:259` — `settingSources: ['user', 'project', 'local']`. 글로벌 자산(`~/.claude/CLAUDE.md`·skills·hooks)을 SDK 세션에 로드해 Mac Mini Claude Code CLI와 동등한 경험을 Discord로 제공. upstream 동기화 시 이 패치 보존 필수.
+
+- upstream merge 후 `grep -n settingSources claude/client.ts`로 패치 생존 확인 (2026-08 기준 259행 부근, merge로 행 번호 이동 가능)
 
 ## 주의
 
